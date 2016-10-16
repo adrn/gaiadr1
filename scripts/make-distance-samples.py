@@ -102,7 +102,7 @@ def main(pool, stacked_tgas_path, n_samples_per_star=None, d_max=None,
          output_path=None, seed=42, overwrite=False):
 
     # read TGAS FITS file
-    tgas = fits.getdata(stacked_tgas_path, 1)[:16] # HACK: for testing
+    tgas = fits.getdata(stacked_tgas_path, 1)
     n_tgas = len(tgas)
     logger.debug("Loaded {} stars from stacked TGAS file.".format(n_tgas))
 
