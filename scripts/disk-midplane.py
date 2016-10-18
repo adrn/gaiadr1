@@ -105,6 +105,10 @@ def main(pool, stacked_tgas_path, distance_samples_path,
     idx = np.median(dists, axis=1) < 200.
     dists = dists[idx]
     tgas = tgas[idx]
+
+    # HACK:
+    dists = dists[::16]
+    tgas = tgas[::16]
     logger.debug("{} stars after dist cut.".format(len(dists)))
 
     g = coord.Galactic(l=tgas['l']*u.degree, b=tgas['b']*u.degree, distance=1*u.pc)
@@ -118,7 +122,7 @@ def main(pool, stacked_tgas_path, distance_samples_path,
     # just test that these work
     p0 = np.concatenate(([-20.], log_amps, log_ivars))
 
-    n_walkers = len(p0) * 8
+    n_walkers = len(p0) * 16
     logger.debug("{} MCMC walkers, {} params".format(n_walkers, len(p0)))
     p0s = emcee.utils.sample_ball(p0, p0 * 1e-3, size=n_walkers)
     for _p0 in p0s:
@@ -129,7 +133,7 @@ def main(pool, stacked_tgas_path, distance_samples_path,
     sampler = emcee.EnsembleSampler(n_walkers, n_dim, ln_posterior,
                                     args=(z, K), pool=pool)
 
-    _ = sampler.run_mcmc(p0s, N=1024)
+    _ = sampler.run_mcmc(p0s, N=32)
 
     pool.close()
 
