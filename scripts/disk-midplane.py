@@ -87,10 +87,13 @@ def ln_posterior(p, z, K):
     return lp + ll.sum()
 
 def main(pool, stacked_tgas_path, distance_samples_path,
-         output_path=None, seed=42, overwrite=False):
+         output_path=None, seed=42, overwrite=False, continue_sampling=False):
 
     if os.path.exists(output_path) and overwrite:
         os.remove(output_path)
+
+    if continue_sampling and not overwrite:
+        raise IOError("Can't continue if initial file doesn't exist!")
 
     # read TGAS FITS file
     tgas = fits.getdata(stacked_tgas_path, 1)
@@ -115,31 +118,46 @@ def main(pool, stacked_tgas_path, distance_samples_path,
     gc = g.transform_to(coord.Galactocentric(galcen_distance=8.*u.kpc, z_sun=0.*u.pc))
     z = gc.cartesian.z.value[:,None] * dists
 
-    K = 3
-    log_ivars = -2*np.log([120, 250., 1000.])
-    log_amps = np.log([0.05, 0.9])
+    if not continue_sampling:
+        # TODO: should really let user set this
+        K = 3
+        log_ivars = -2*np.log([120, 250., 1000.])
+        log_amps = np.log([0.05, 0.9])
 
-    # just test that these work
-    p0 = np.concatenate(([-20.], log_amps, log_ivars))
+        # just test that these work
+        p0 = np.concatenate(([-20.], log_amps, log_ivars))
 
-    n_walkers = len(p0) * 16
-    logger.debug("{} MCMC walkers, {} params".format(n_walkers, len(p0)))
-    p0s = emcee.utils.sample_ball(p0, p0 * 1e-3, size=n_walkers)
-    for _p0 in p0s:
-        assert np.isfinite(ln_posterior(p0, z[:128], K))
+        n_walkers = len(p0) * 16
+        logger.debug("{} MCMC walkers, {} params".format(n_walkers, len(p0)))
+        p0s = emcee.utils.sample_ball(p0, p0 * 1e-3, size=n_walkers)
+        for _p0 in p0s:
+            assert np.isfinite(ln_posterior(p0, z[:128], K))
+
+    else:
+        with h5py.File(output_path, 'r') as f:
+            pre_chain = f['chain'][:]
+            p0s = pre_chain[:,-1]
+            K = f['chain'].attrs['K']
+
+        n_walkers, n_dim = p0s.shape
 
     # pool
     n_dim = p0.shape[0]
     sampler = emcee.EnsembleSampler(n_walkers, n_dim, ln_posterior,
                                     args=(z, K), pool=pool)
 
-    _ = sampler.run_mcmc(p0s, N=32)
+    _ = sampler.run_mcmc(p0s, N=256)
 
     pool.close()
 
-    with h5py.File(output_path, 'w') as f:
-        dset = f.create_dataset('chain', data=sampler.chain)
-        dset.attrs['K'] = K
+    if continue_sampling:
+        with h5py.File(output_path, 'a') as f:
+            dset = f.create_dataset('chain', data=np.hstack((pre_chain, sampler.chain)))
+
+    else:
+        with h5py.File(output_path, 'w') as f:
+            dset = f.create_dataset('chain', data=sampler.chain)
+            dset.attrs['K'] = K
 
 if __name__ == "__main__":
     from argparse import ArgumentParser
@@ -152,8 +170,11 @@ if __name__ == "__main__":
     vq_group.add_argument('-v', '--verbose', action='count', default=0, dest='verbosity')
     vq_group.add_argument('-q', '--quiet', action='count', default=0, dest='quietness')
 
-    parser.add_argument("-o", "--overwrite", dest="overwrite", default=False,
-                        action="store_true", help="Overwrite any existing data.")
+    group_oc = parser.add_mutually_exclusive_group()
+    group_oc.add_argument("-o", "--overwrite", dest="overwrite", default=False,
+                          action="store_true", help="Overwrite any existing data.")
+    group_oc.add_argument("-c", "--continue", dest="_continue", default=False,
+                          action="store_true", help="Continue sampling from where we left off.")
 
     # parser.add_argument("-s", "--seed", dest="seed", default=None, type=int,
     #                     help="Random number seed")
@@ -197,4 +218,4 @@ if __name__ == "__main__":
     main(pool, stacked_tgas_path=args.stacked_tgas_path,
          distance_samples_path=args.distance_samples_path,
          output_path=args.output_path, # seed=args.seed,
-         overwrite=args.overwrite)
+         overwrite=args.overwrite, continue_sampling=args.continue_sampling)
