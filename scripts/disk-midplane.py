@@ -92,7 +92,7 @@ def main(pool, stacked_tgas_path, distance_samples_path,
     if os.path.exists(output_path) and overwrite:
         os.remove(output_path)
 
-    if continue_sampling and not overwrite:
+    if continue_sampling and not os.path.exists(output_path):
         raise IOError("Can't continue if initial file doesn't exist!")
 
     # read TGAS FITS file
@@ -101,7 +101,7 @@ def main(pool, stacked_tgas_path, distance_samples_path,
     logger.debug("Loaded {} stars from stacked TGAS file.".format(n_tgas))
 
     # read all of the distance samples
-    with h5py.File("../data/distance-samples.hdf5") as f:
+    with h5py.File(distance_samples_path) as f:
         dists = f['distance'][:,:128] # OMG
 
     # only take nearby stars
@@ -126,6 +126,7 @@ def main(pool, stacked_tgas_path, distance_samples_path,
 
         # just test that these work
         p0 = np.concatenate(([-20.], log_amps, log_ivars))
+        n_dim = p0.shape[0]
 
         n_walkers = len(p0) * 16
         logger.debug("{} MCMC walkers, {} params".format(n_walkers, len(p0)))
@@ -142,7 +143,6 @@ def main(pool, stacked_tgas_path, distance_samples_path,
         n_walkers, n_dim = p0s.shape
 
     # pool
-    n_dim = p0.shape[0]
     sampler = emcee.EnsembleSampler(n_walkers, n_dim, ln_posterior,
                                     args=(z, K), pool=pool)
 
