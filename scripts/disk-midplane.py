@@ -218,4 +218,4 @@ if __name__ == "__main__":
     main(pool, stacked_tgas_path=args.stacked_tgas_path,
          distance_samples_path=args.distance_samples_path,
          output_path=args.output_path, # seed=args.seed,
-         overwrite=args.overwrite, continue_sampling=args.continue_sampling)
+         overwrite=args.overwrite, continue_sampling=args._continue)
