@@ -152,7 +152,7 @@ def main(pool, stacked_tgas_path, distance_samples_path,
 
     if continue_sampling:
         with h5py.File(output_path, 'a') as f:
-            dset = f.create_dataset('chain', data=np.hstack((pre_chain, sampler.chain)))
+            f['chain'] = np.hstack((pre_chain, sampler.chain))
 
     else:
         with h5py.File(output_path, 'w') as f:
